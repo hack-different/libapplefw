@@ -11,13 +11,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>             // strcmp, strncmp, strlen
+#include <assert.h>
 
-#ifdef PMGR_MAIN
-#   include <stdio.h>           // snprintf
-#endif
-
-#include "dt.h"
-#include "pmgr.h"
+#include <applefw/device_tree.h>
+#include <applefw/power_manager.h>
 
 // ========== PMGR ==========
 
@@ -91,7 +88,7 @@ static int pmgr_recurse(int depth, pmgr_t *pmgr, pmgr_dev_t *d, pmgr_arg_t *arg)
     {
         pmgr_map_t *m = &pmgr->map[d->map];
         pmgr_reg_t *r = &pmgr->reg[m->reg];
-        REQ(d->idx < ((r->size - m->off) >> PMGR_SHIFT));
+        assert(d->idx < ((r->size - m->off) >> PMGR_SHIFT));
         rv = arg->cb(depth, pmgr->u8id, id, IO_BASE + r->addr + m->off + (d->idx << PMGR_SHIFT), d->name, arg->ctx);
         if(rv != 0)
         {
@@ -109,18 +106,18 @@ int pmgr_find(void *mem, size_t size, pmgr_t *pmgr)
     int r = -1;
     bool u8id = false;
 
-    REQ(dt_check(mem, size, NULL) == 0);
+    assert(dt_check(mem, size, NULL) == 0);
 
     dt_node_t *node = dt_find(mem, "/device-tree/arm-io/pmgr");
-    REQ(node);
+    assert(node);
 
     size_t reglen = 0, maplen = 0, devlen = 0;
     pmgr_reg_t *reg = dt_prop(node, "reg", &reglen);
     pmgr_map_t *map = dt_prop(node, "ps-regs", &maplen);
     pmgr_dev_t *dev = dt_prop(node, "devices", &devlen);
-    REQ(reg);
-    REQ(map);
-    REQ(dev);
+    assert(reg);
+    assert(map);
+    assert(dev);
 
     reglen /= sizeof(*reg);
     maplen /= sizeof(*map);
@@ -128,11 +125,11 @@ int pmgr_find(void *mem, size_t size, pmgr_t *pmgr)
 
     for(size_t i = 0; i < maplen; ++i)
     {
-        REQ(map[i].reg < reglen);
+        assert(map[i].reg < reglen);
     }
     for(size_t i = 0; i < devlen; ++i)
     {
-        REQ((dev[i].flg & 0x10) || dev[i].map < maplen);
+        assert((dev[i].flg & 0x10) || dev[i].map < maplen);
         if(dev[i].id1)
         {
             u8id = true;
@@ -164,65 +161,3 @@ int pmgr_parse(pmgr_t *pmgr, pmgr_arg_t *arg)
     return 0;
 }
 
-// ========== CLI ==========
-
-#ifdef PMGR_MAIN
-
-int pmgr(void *mem, size_t size, void *a)
-{
-    pmgr_t pmgr;
-    int r = pmgr_find(mem, size, &pmgr);
-    if(r != 0) return r;
-    return pmgr_parse(&pmgr, a);
-}
-
-#define pflag_show_id 0x01
-
-static int pmgr_cb(int depth, bool u8id, uint16_t id, uint64_t addr, const char *name, void *ctx)
-{
-    uint32_t pflags = *(uint32_t*)ctx;
-    char buf[27]; // 6+1 id, 18+1 addr, 1 terminator
-    buf[0] = '\0';
-    int i = 0;
-    if(pflags & pflag_show_id) i += snprintf(buf+i, sizeof(buf)-i, u8id ? "0x%02hx " : "0x%04hx ", id);
-    if(addr) i += snprintf(buf+i, sizeof(buf)-i, "0x%09llx ", addr);
-    else     i += snprintf(buf+i, sizeof(buf)-i, "----------- ");
-    LOG("%*s%s%s", depth * 4, "", buf, name);
-    return 0;
-}
-
-int main(int argc, const char **argv)
-{
-    uint32_t pflags = 0;
-    pmgr_arg_t arg =
-    {
-        .cb  = pmgr_cb,
-        .ctx = &pflags,
-    };
-    int aoff = 1;
-    for(; aoff < argc && argv[aoff][0] == '-'; ++aoff)
-    {
-        for(size_t i = 1; argv[aoff][i] != '\0'; ++i)
-        {
-            switch(argv[aoff][i])
-            {
-                case 'a':
-                    arg.flag_all = 1;
-                    break;
-                case 'i':
-                    pflags |= pflag_show_id;
-                    break;
-                default:
-                    ERR("Bad option: -%c", argv[aoff][i]);
-                    return -1;
-            }
-        }
-    }
-    if(argc - aoff != 1)
-    {
-        ERR("Usage: %s [-a] [-i] file", argv[0]);
-        return -1;
-    }
-    return file2mem(argv[aoff], &pmgr, &arg);
-}
-#endif

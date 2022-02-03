@@ -14,34 +14,6 @@
 #include <stddef.h>             // size_t
 #include <stdint.h>
 
-// ========== LIB ==========
-
-#ifdef DT_IO
-#   include <stdio.h>
-#   define LOG(str, args...) do { printf(str "\n", ##args); } while(0)
-#   define ERR(str, args...) do { fprintf(stderr, "\x1b[1;91m" str "\x1b[0m\n", ##args); } while(0)
-#endif
-
-#ifdef ERR
-#   define REQ(expr) \
-    do \
-    { \
-        if(!(expr)) \
-        { \
-            ERR("!(" #expr ")"); \
-            goto out; \
-        } \
-    } while(0)
-#else
-#   define REQ(expr) \
-    do \
-    { \
-        if(!(expr)) \
-        { \
-            goto out; \
-        } \
-    } while(0)
-#endif
 
 int file2mem(const char *path, int (*func)(void*, size_t, void*), void *arg);
 
