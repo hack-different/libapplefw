@@ -8,4 +8,4 @@ AM_CFLAGS = \
 
 lib_LTLIBRARIES = libapplefw.la
 
-libapplefw_la_SOURCES = device_tree.c power_manager.c
+libapplefw_la_SOURCES = device_tree.c power_manager.c lzss.c lzss.h
