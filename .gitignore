@@ -100,3 +100,7 @@ tools/idevice*
 cython/.libs/*
 cython/*.c
 doxygen.cfg
+
+
+.idea/
+.vscode/
